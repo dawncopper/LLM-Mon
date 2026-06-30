@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { api } from '@/services/api';
 import type { ApiKeyConfig, ModelConfig, QualityMetrics, BusyLevel, HistoryEntry } from '@/types';
 
 const HISTORY_LIMIT = 100;
@@ -18,17 +19,20 @@ interface AppStore {
   metrics: Record<string, QualityMetrics>;
   samplingInterval: number;
   isMonitoring: boolean;
+  isLoading: boolean;
 
-  addApiKey: (apiKey: Omit<ApiKeyConfig, 'id'>) => void;
-  removeApiKey: (id: string) => void;
+  // Actions
+  fetchApiKeys: () => Promise<void>;
+  addApiKey: (apiKey: Omit<ApiKeyConfig, 'id'>) => Promise<void>;
+  removeApiKey: (id: string) => Promise<void>;
   getApiKey: (id: string) => ApiKeyConfig | undefined;
 
-  addModel: (model: Omit<ModelConfig, 'id' | 'createdAt'>) => string;
-  removeModel: (id: string) => void;
+  fetchModels: () => Promise<void>;
+  addModel: (model: Omit<ModelConfig, 'id' | 'createdAt'>) => Promise<string>;
+  removeModel: (id: string) => Promise<void>;
 
-  recordMetric: (modelId: string, responseTime: number, success: boolean) => void;
+  fetchMetrics: (modelId: string) => Promise<void>;
   setSamplingInterval: (interval: number) => void;
-  setMonitoring: (isMonitoring: boolean) => void;
 }
 
 function generateId(): string {
@@ -43,18 +47,26 @@ export const useStore = create<AppStore>()(
       metrics: {},
       samplingInterval: DEFAULT_SAMPLING_INTERVAL,
       isMonitoring: true,
+      isLoading: false,
 
-      addApiKey: (apiKey) => {
-        const newApiKey: ApiKeyConfig = {
-          ...apiKey,
-          id: generateId(),
-        };
+      fetchApiKeys: async () => {
+        try {
+          const keys = await api.getKeys();
+          set({ apiKeys: keys });
+        } catch (err) {
+          console.error('Failed to fetch API keys:', err);
+        }
+      },
+
+      addApiKey: async (apiKey) => {
+        const newKey = await api.addKey(apiKey);
         set((state) => ({
-          apiKeys: [...state.apiKeys, newApiKey],
+          apiKeys: [...state.apiKeys, { ...newKey, key: '' } as ApiKeyConfig],
         }));
       },
 
-      removeApiKey: (id) => {
+      removeApiKey: async (id) => {
+        await api.deleteKey(id);
         set((state) => ({
           apiKeys: state.apiKeys.filter((k) => k.id !== id),
         }));
@@ -64,33 +76,35 @@ export const useStore = create<AppStore>()(
         return get().apiKeys.find((k) => k.id === id);
       },
 
-      addModel: (model) => {
-        const id = generateId();
-        const newModel: ModelConfig = {
-          ...model,
-          id,
-          createdAt: Date.now(),
-        };
-        const initialMetrics: QualityMetrics = {
-          modelId: id,
-          responseTime: 0,
-          errorRate: 0,
-          successRate: 100,
-          busyLevel: 'idle',
-          lastUpdated: Date.now(),
-          history: [],
-        };
+      fetchModels: async () => {
+        try {
+          set({ isLoading: true });
+          const models = await api.getModels();
+          set({ models: models as ModelConfig[], isLoading: false });
+          
+          // Fetch metrics for each model
+          for (const model of models) {
+            get().fetchMetrics(model.id);
+          }
+        } catch (err) {
+          console.error('Failed to fetch models:', err);
+          set({ isLoading: false });
+        }
+      },
+
+      addModel: async (model) => {
+        const newModel = await api.addModel(model);
+        const id = newModel.id;
         set((state) => ({
-          models: [...state.models, newModel],
-          metrics: {
-            ...state.metrics,
-            [id]: initialMetrics,
-          },
+          models: [...state.models, { ...newModel, createdAt: Date.now() } as ModelConfig],
         }));
+        // Fetch initial metrics
+        get().fetchMetrics(id);
         return id;
       },
 
-      removeModel: (id) => {
+      removeModel: async (id) => {
+        await api.deleteModel(id);
         set((state) => {
           const { [id]: _, ...restMetrics } = state.metrics;
           return {
@@ -100,46 +114,35 @@ export const useStore = create<AppStore>()(
         });
       },
 
-      recordMetric: (modelId, responseTime, success) => {
-        set((state) => {
-          const currentMetrics = state.metrics[modelId];
-          if (!currentMetrics) return state;
-
-          const newHistory: HistoryEntry[] = [
-            ...currentMetrics.history,
-            { timestamp: Date.now(), responseTime, success },
-          ].slice(-HISTORY_LIMIT);
-
-          const totalRequests = newHistory.length;
-          const failedRequests = newHistory.filter((h) => !h.success).length;
-          const avgResponseTime = newHistory.reduce((sum, h) => sum + h.responseTime, 0) / totalRequests;
-          const errorRate = Math.round((failedRequests / totalRequests) * 100);
-
-          const newMetrics: QualityMetrics = {
-            modelId,
-            responseTime: Math.round(avgResponseTime),
-            errorRate,
-            successRate: 100 - errorRate,
-            busyLevel: calculateBusyLevel(avgResponseTime),
-            lastUpdated: Date.now(),
-            history: newHistory,
+      fetchMetrics: async (modelId) => {
+        try {
+          const metrics = await api.getMetrics(modelId);
+          const transformed: QualityMetrics = {
+            modelId: metrics.modelId,
+            responseTime: metrics.responseTime,
+            errorRate: metrics.errorRate,
+            successRate: metrics.successRate,
+            busyLevel: metrics.busyLevel as BusyLevel,
+            lastUpdated: metrics.lastUpdated,
+            history: metrics.history.map((h) => ({
+              timestamp: h.timestamp,
+              responseTime: h.responseTime,
+              success: h.success,
+            })) as HistoryEntry[],
           };
-
-          return {
+          set((state) => ({
             metrics: {
               ...state.metrics,
-              [modelId]: newMetrics,
+              [modelId]: transformed,
             },
-          };
-        });
+          }));
+        } catch (err) {
+          console.error('Failed to fetch metrics:', err);
+        }
       },
 
       setSamplingInterval: (interval) => {
         set({ samplingInterval: interval });
-      },
-
-      setMonitoring: (isMonitoring) => {
-        set({ isMonitoring });
       },
     }),
     {
