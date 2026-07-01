@@ -1,10 +1,9 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma.js';
 import { calculateBusyLevel } from '../types/index.js';
 import { runMultiTest, TestCase } from '../services/llm.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get('/', async (_, res) => {
   const models = await prisma.model.findMany({

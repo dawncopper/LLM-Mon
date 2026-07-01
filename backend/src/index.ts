@@ -1,16 +1,25 @@
 import express from 'express';
 import cors from 'cors';
-import { PrismaClient } from '@prisma/client';
 import cron from 'node-cron';
+import { prisma } from './lib/prisma.js';
 import { startMonitor } from './services/monitor.js';
 import modelsRouter from './routes/models.js';
 import keysRouter from './routes/keys.js';
 
 const app = express();
-const prisma = new PrismaClient();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// CORS 配置
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
+  : ['https://dawncopper.github.io', 'http://localhost:5173'];
+
+app.use(
+  cors({
+    origin: corsOrigins,
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // 路由
@@ -31,7 +40,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 // 启动后台监控 (每30秒)
 cron.schedule('*/30 * * * * *', async () => {
   try {
-    await startMonitor(prisma);
+    await startMonitor();
   } catch (err) {
     console.error('Monitor error:', err);
   }
@@ -41,5 +50,3 @@ cron.schedule('*/30 * * * * *', async () => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-export { prisma };

@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../lib/prisma.js';
 import { encryptKey, decryptKey } from '../utils/crypto.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get('/', async (_, res) => {
   const keys = await prisma.apiKey.findMany({ orderBy: { createdAt: 'desc' } });
