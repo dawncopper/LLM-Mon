@@ -1,7 +1,7 @@
-import { Key, Trash2, Plus, AlertCircle, CheckCircle, FileText, Edit2, X } from 'lucide-react';
-import { useState } from 'react';
+import { Key, Trash2, Plus, AlertCircle, CheckCircle, Settings as SettingsIcon, Server } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useStore } from '@/store';
-import type { Provider, TestCase, TestCategory } from '@/types';
+import type { Provider } from '@/types';
 
 const providers: { value: Provider; label: string }[] = [
   { value: 'openai', label: 'OpenAI' },
@@ -10,46 +10,48 @@ const providers: { value: Provider; label: string }[] = [
   { value: 'custom', label: '自定义' },
 ];
 
-const categories: { value: TestCategory; label: string }[] = [
-  { value: 'basic', label: '基础' },
-  { value: 'reasoning', label: '推理' },
-  { value: 'fingerprint', label: '指纹' },
-  { value: 'custom', label: '自定义' },
-];
-
 export default function Settings() {
   const apiKeys = useStore((state) => state.apiKeys);
   const addApiKey = useStore((state) => state.addApiKey);
   const removeApiKey = useStore((state) => state.removeApiKey);
+  const fetchApiKeys = useStore((state) => state.fetchApiKeys);
   const samplingInterval = useStore((state) => state.samplingInterval);
   const setSamplingInterval = useStore((state) => state.setSamplingInterval);
-  
-  const testCases = useStore((state) => state.testCases);
-  const addTestCase = useStore((state) => state.addTestCase);
-  const removeTestCase = useStore((state) => state.removeTestCase);
-  const updateTestCase = useStore((state) => state.updateTestCase);
+  const backendUrl = useStore((state) => state.backendUrl);
+  const setBackendUrl = useStore((state) => state.setBackendUrl);
+  const isBackendConnected = useStore((state) => state.isBackendConnected);
+  const checkBackend = useStore((state) => state.checkBackend);
 
   const [isAddingKey, setIsAddingKey] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newProvider, setNewProvider] = useState<Provider>('openai');
   const [newKey, setNewKey] = useState('');
+  const [backendUrlInput, setBackendUrlInput] = useState(backendUrl);
+  const [isCheckingBackend, setIsCheckingBackend] = useState(false);
+  const [error, setError] = useState('');
 
-  const [isAddingTest, setIsAddingTest] = useState(false);
-  const [editingTest, setEditingTest] = useState<TestCase | null>(null);
-  const [testName, setTestName] = useState('');
-  const [testPrompt, setTestPrompt] = useState('');
-  const [testCategory, setTestCategory] = useState<TestCategory>('custom');
+  useEffect(() => {
+    if (backendUrl) {
+      checkBackend();
+      fetchApiKeys();
+    }
+  }, []);
 
-  const handleAddKey = () => {
+  const handleAddKey = async () => {
     if (!newLabel.trim() || !newKey.trim()) return;
-    addApiKey({
-      label: newLabel.trim(),
-      provider: newProvider,
-      key: newKey.trim(),
-    });
-    setNewLabel('');
-    setNewKey('');
-    setIsAddingKey(false);
+    try {
+      setError('');
+      await addApiKey({
+        label: newLabel.trim(),
+        provider: newProvider,
+        key: newKey.trim(),
+      });
+      setNewLabel('');
+      setNewKey('');
+      setIsAddingKey(false);
+    } catch (err: any) {
+      setError(err.message || '添加失败，请检查后端连接');
+    }
   };
 
   const handleDeleteKey = (id: string, label: string) => {
@@ -58,42 +60,22 @@ export default function Settings() {
     }
   };
 
-  const handleAddTest = () => {
-    if (!testName.trim() || !testPrompt.trim()) return;
-    addTestCase({
-      name: testName.trim(),
-      prompt: testPrompt.trim(),
-      category: testCategory,
-    });
-    setTestName('');
-    setTestPrompt('');
-    setTestCategory('custom');
-    setIsAddingTest(false);
-  };
-
-  const handleEditTest = (testCase: TestCase) => {
-    setEditingTest(testCase);
-    setTestName(testCase.name);
-    setTestPrompt(testCase.prompt);
-    setTestCategory(testCase.category);
-  };
-
-  const handleSaveEdit = () => {
-    if (!editingTest || !testName.trim() || !testPrompt.trim()) return;
-    updateTestCase(editingTest.id, {
-      name: testName.trim(),
-      prompt: testPrompt.trim(),
-      category: testCategory,
-    });
-    setEditingTest(null);
-    setTestName('');
-    setTestPrompt('');
-    setTestCategory('custom');
-  };
-
-  const handleDeleteTest = (id: string, name: string) => {
-    if (confirm(`确定要删除测试用例 "${name}" 吗？`)) {
-      removeTestCase(id);
+  const handleSaveBackendUrl = async () => {
+    const url = backendUrlInput.replace(/\/$/, '');
+    setBackendUrl(url);
+    setIsCheckingBackend(true);
+    setError('');
+    try {
+      const connected = await checkBackend();
+      if (connected) {
+        fetchApiKeys();
+      } else {
+        setError('无法连接到后端服务');
+      }
+    } catch {
+      setError('连接失败，请检查 URL 是否正确');
+    } finally {
+      setIsCheckingBackend(false);
     }
   };
 
@@ -101,8 +83,55 @@ export default function Settings() {
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold mb-2">设置</h1>
-        <p className="text-sm text-zinc-500">配置 API Key 和监控参数</p>
+        <p className="text-sm text-zinc-500">配置后端服务和 API Key</p>
       </div>
+
+      {/* Backend Section */}
+      <section className="bg-primary rounded-2xl p-6 border border-accent/30 mb-6">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-accent/50 flex items-center justify-center">
+            <Server className="w-5 h-5 text-sky-blue" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-semibold">后端服务</h2>
+            <p className="text-xs text-zinc-500">
+              {isBackendConnected ? (
+                <span className="text-mint-green">已连接</span>
+              ) : (
+                <span className="text-error-red">未连接</span>
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-zinc-400 mb-2">
+              后端 API URL
+            </label>
+            <input
+              type="text"
+              value={backendUrlInput}
+              onChange={(e) => setBackendUrlInput(e.target.value)}
+              placeholder="https://your-backend.example.com"
+              className="w-full px-4 py-3 bg-primary rounded-xl border border-accent/50 focus:border-sky-blue focus:ring-1 focus:ring-sky-blue outline-none transition-all font-mono text-sm"
+            />
+          </div>
+          <button
+            onClick={handleSaveBackendUrl}
+            disabled={isCheckingBackend || !backendUrlInput.trim()}
+            className="w-full px-4 py-3 bg-sky-blue hover:bg-sky-blue/90 text-primary font-medium rounded-xl transition-all disabled:opacity-50"
+          >
+            {isCheckingBackend ? '连接中...' : '保存并连接'}
+          </button>
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-error-red/10 border border-error-red/30 rounded-xl text-error-red text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* API Keys Section */}
       <section className="bg-primary rounded-2xl p-6 border border-accent/30 mb-6">
@@ -113,10 +142,10 @@ export default function Settings() {
             </div>
             <div>
               <h2 className="font-semibold">API Keys</h2>
-              <p className="text-xs text-zinc-500">管理您的 AI 服务商 API Key</p>
+              <p className="text-xs text-zinc-500">加密存储在后端数据库</p>
             </div>
           </div>
-          {!isAddingKey && (
+          {!isAddingKey && isBackendConnected && (
             <button
               onClick={() => setIsAddingKey(true)}
               className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/80 text-white rounded-lg transition-all"
@@ -127,7 +156,14 @@ export default function Settings() {
           )}
         </div>
 
-        {apiKeys.length === 0 && !isAddingKey ? (
+        {!isBackendConnected && (
+          <div className="text-center py-8 text-zinc-500">
+            <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>请先配置并连接后端服务</p>
+          </div>
+        )}
+
+        {isBackendConnected && apiKeys.length === 0 && !isAddingKey ? (
           <div className="text-center py-8 text-zinc-500">
             <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>暂无 API Key，请先添加</p>
@@ -161,9 +197,7 @@ export default function Settings() {
           <div className="mt-4 p-4 bg-background/30 rounded-xl border border-accent/30">
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">
-                  名称
-                </label>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">名称</label>
                 <input
                   type="text"
                   value={newLabel}
@@ -173,9 +207,7 @@ export default function Settings() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">
-                  服务商
-                </label>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">服务商</label>
                 <select
                   value={newProvider}
                   onChange={(e) => setNewProvider(e.target.value as Provider)}
@@ -189,9 +221,7 @@ export default function Settings() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">
-                  API Key
-                </label>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">API Key</label>
                 <input
                   type="password"
                   value={newKey}
@@ -200,12 +230,14 @@ export default function Settings() {
                   className="w-full px-4 py-3 bg-primary rounded-xl border border-accent/50 focus:border-sky-blue focus:ring-1 focus:ring-sky-blue outline-none transition-all font-mono"
                 />
               </div>
+              {error && <p className="text-sm text-error-red">{error}</p>}
               <div className="flex gap-3">
                 <button
                   onClick={() => {
                     setIsAddingKey(false);
                     setNewLabel('');
                     setNewKey('');
+                    setError('');
                   }}
                   className="flex-1 px-4 py-3 bg-accent/50 hover:bg-accent text-white rounded-xl transition-all"
                 >
@@ -224,161 +256,11 @@ export default function Settings() {
         )}
       </section>
 
-      {/* Test Cases Section */}
-      <section className="bg-primary rounded-2xl p-6 border border-accent/30 mb-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/50 flex items-center justify-center">
-              <FileText className="w-5 h-5 text-sky-blue" />
-            </div>
-            <div>
-              <h2 className="font-semibold">测试用例</h2>
-              <p className="text-xs text-zinc-500">自定义监控测试提示词</p>
-            </div>
-          </div>
-          {!isAddingTest && !editingTest && (
-            <button
-              onClick={() => setIsAddingTest(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/80 text-white rounded-lg transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              添加
-            </button>
-          )}
-        </div>
-
-        {testCases.length === 0 && !isAddingTest && !editingTest ? (
-          <div className="text-center py-8 text-zinc-500">
-            <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p>暂无测试用例</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {testCases.map((testCase) => (
-              <div
-                key={testCase.id}
-                className="p-4 bg-background/50 rounded-xl"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{testCase.name}</span>
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-accent/50 text-zinc-400">
-                      {categories.find((c) => c.value === testCase.category)?.label}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleEditTest(testCase)}
-                      className="p-1.5 rounded-lg text-zinc-500 hover:text-sky-blue hover:bg-sky-blue/10 transition-all"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteTest(testCase.id, testCase.name)}
-                      className="p-1.5 rounded-lg text-zinc-500 hover:text-error-red hover:bg-error-red/10 transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <p className="text-xs text-zinc-500 line-clamp-2">{testCase.prompt}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {(isAddingTest || editingTest) && (
-          <div className="mt-4 p-4 bg-background/30 rounded-xl border border-accent/30">
-            <div className="flex items-center justify-between mb-4">
-              <span className="font-medium">{editingTest ? '编辑测试用例' : '添加测试用例'}</span>
-              <button
-                onClick={() => {
-                  setIsAddingTest(false);
-                  setEditingTest(null);
-                  setTestName('');
-                  setTestPrompt('');
-                  setTestCategory('custom');
-                }}
-                className="p-1 rounded-lg text-zinc-500 hover:text-zinc-300 transition-all"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">
-                  名称
-                </label>
-                <input
-                  type="text"
-                  value={testName}
-                  onChange={(e) => setTestName(e.target.value)}
-                  placeholder="例如：数学推理测试"
-                  className="w-full px-4 py-3 bg-primary rounded-xl border border-accent/50 focus:border-sky-blue focus:ring-1 focus:ring-sky-blue outline-none transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">
-                  分类
-                </label>
-                <select
-                  value={testCategory}
-                  onChange={(e) => setTestCategory(e.target.value as TestCategory)}
-                  className="w-full px-4 py-3 bg-primary rounded-xl border border-accent/50 focus:border-sky-blue focus:ring-1 focus:ring-sky-blue outline-none transition-all"
-                >
-                  {categories.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-2">
-                  提示词
-                </label>
-                <textarea
-                  value={testPrompt}
-                  onChange={(e) => setTestPrompt(e.target.value)}
-                  placeholder="输入测试提示词..."
-                  rows={4}
-                  className="w-full px-4 py-3 bg-primary rounded-xl border border-accent/50 focus:border-sky-blue focus:ring-1 focus:ring-sky-blue outline-none transition-all resize-none"
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setIsAddingTest(false);
-                    setEditingTest(null);
-                    setTestName('');
-                    setTestPrompt('');
-                    setTestCategory('custom');
-                  }}
-                  className="flex-1 px-4 py-3 bg-accent/50 hover:bg-accent text-white rounded-xl transition-all"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={editingTest ? handleSaveEdit : handleAddTest}
-                  disabled={!testName.trim() || !testPrompt.trim()}
-                  className="flex-1 px-4 py-3 bg-sky-blue hover:bg-sky-blue/90 text-primary font-medium rounded-xl transition-all disabled:opacity-50"
-                >
-                  {editingTest ? '保存修改' : '添加'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
       {/* Sampling Interval Section */}
       <section className="bg-primary rounded-2xl p-6 border border-accent/30">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-xl bg-accent/50 flex items-center justify-center">
-            <svg className="w-5 h-5 text-sky-blue" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12,6 12,12 16,14" />
-            </svg>
+            <SettingsIcon className="w-5 h-5 text-sky-blue" />
           </div>
           <div>
             <h2 className="font-semibold">采样间隔</h2>
@@ -396,9 +278,7 @@ export default function Settings() {
                   : 'bg-background/50 border border-transparent hover:border-accent/50'
               }`}
             >
-              <span className="font-medium">
-                {interval / 1000} 秒
-              </span>
+              <span className="font-medium">{interval / 1000} 秒</span>
               <input
                 type="radio"
                 name="samplingInterval"
@@ -407,9 +287,7 @@ export default function Settings() {
                 onChange={() => setSamplingInterval(interval)}
                 className="sr-only"
               />
-              {samplingInterval === interval && (
-                <CheckCircle className="w-5 h-5 text-sky-blue" />
-              )}
+              {samplingInterval === interval && <CheckCircle className="w-5 h-5 text-sky-blue" />}
             </label>
           ))}
         </div>

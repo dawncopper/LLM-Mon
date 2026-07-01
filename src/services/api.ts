@@ -1,72 +1,146 @@
 /// <reference types="vite/client" />
-import type { Provider } from '@/types';
+import type { Provider, TestCase } from '@/types';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+function getApiBase(): string {
+  const stored = localStorage.getItem('llm-monitor-storage');
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed.state?.backendUrl) {
+        return parsed.state.backendUrl;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return import.meta.env.VITE_API_URL || '';
+}
 
-interface ApiKey {
+export interface ApiKeyResponse {
   id: string;
   provider: Provider;
   label: string;
   key?: string;
+  createdAt?: string;
 }
 
-interface Model {
+export interface ModelResponse {
   id: string;
   name: string;
-  apiDocUrl: string;
+  apiDocUrl: string | null;
   apiEndpoint: string;
   apiKeyId: string;
+  apiKey?: { label: string; provider: string; id: string };
+  createdAt?: string;
 }
 
-interface Metrics {
+export interface MetricsResponse {
   modelId: string;
   responseTime: number;
   errorRate: number;
   successRate: number;
   busyLevel: string;
   lastUpdated: number;
-  juiceValue?: number;
+  juiceValue: number | null;
+  qualityScore?: number;
+  consistencyScore?: number;
   history: { timestamp: number; responseTime: number; success: boolean }[];
 }
 
+export interface TestResultResponse {
+  responseTime: number;
+  success: boolean;
+  outputSnippet: string;
+  score?: number;
+}
+
+export interface RunTestResponse {
+  modelId: string;
+  responseTime: number;
+  successRate: number;
+  errorRate: number;
+  juiceValue: number | null;
+  testResults: Record<string, TestResultResponse>;
+  timestamp: number;
+}
+
 export const api = {
-  // Keys
-  async getKeys(): Promise<ApiKey[]> {
-    const res = await fetch(`${API_BASE}/api/keys`);
+  async health(): Promise<{ status: string; timestamp: number }> {
+    const res = await fetch(`${getApiBase()}/api/health`);
     return res.json();
   },
-  async addKey(data: { provider: string; key: string; label: string }): Promise<ApiKey> {
-    const res = await fetch(`${API_BASE}/api/keys`, {
+
+  // Keys
+  async getKeys(): Promise<ApiKeyResponse[]> {
+    const res = await fetch(`${getApiBase()}/api/keys`);
+    return res.json();
+  },
+  async addKey(data: { provider: string; key: string; label: string }): Promise<ApiKeyResponse> {
+    const res = await fetch(`${getApiBase()}/api/keys`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
   async deleteKey(id: string): Promise<void> {
-    await fetch(`${API_BASE}/api/keys/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${getApiBase()}/api/keys/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete key');
   },
 
   // Models
-  async getModels(): Promise<Model[]> {
-    const res = await fetch(`${API_BASE}/api/models`);
+  async getModels(): Promise<ModelResponse[]> {
+    const res = await fetch(`${getApiBase()}/api/models`);
     return res.json();
   },
-  async addModel(data: { name: string; apiDocUrl?: string; apiEndpoint: string; apiKeyId: string }): Promise<Model> {
-    const res = await fetch(`${API_BASE}/api/models`, {
+  async addModel(data: { name: string; apiDocUrl?: string; apiEndpoint: string; apiKeyId: string }): Promise<ModelResponse> {
+    const res = await fetch(`${getApiBase()}/api/models`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
   async deleteModel(id: string): Promise<void> {
-    await fetch(`${API_BASE}/api/models/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${getApiBase()}/api/models/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete model');
   },
 
   // Metrics
-  async getMetrics(modelId: string, hours = 24): Promise<Metrics> {
-    const res = await fetch(`${API_BASE}/api/models/${modelId}/metrics?hours=${hours}`);
+  async getMetrics(modelId: string, hours = 24): Promise<MetricsResponse> {
+    const res = await fetch(`${getApiBase()}/api/models/${modelId}/metrics?hours=${hours}`);
     return res.json();
+  },
+
+  // Run test
+  async runTest(modelId: string, testCases?: TestCase[]): Promise<RunTestResponse> {
+    const res = await fetch(`${getApiBase()}/api/models/${modelId}/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ testCases }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+
+  // Test cases (per model)
+  async getTestCases(modelId: string): Promise<TestCase[]> {
+    const res = await fetch(`${getApiBase()}/api/models/${modelId}/test-cases`);
+    return res.json();
+  },
+  async addTestCase(modelId: string, data: { name: string; prompt: string; category: string }): Promise<TestCase> {
+    const res = await fetch(`${getApiBase()}/api/models/${modelId}/test-cases`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+  async deleteTestCase(modelId: string, testCaseId: string): Promise<void> {
+    const res = await fetch(`${getApiBase()}/api/models/${modelId}/test-cases/${testCaseId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete test case');
   },
 };

@@ -8,16 +8,25 @@ export function useMonitoring() {
   const runMultiTest = useStore((state) => state.runMultiTest);
   const fetchModels = useStore((state) => state.fetchModels);
   const fetchApiKeys = useStore((state) => state.fetchApiKeys);
-  const fetchTestCases = useStore((state) => state.fetchTestCases);
+  const isBackendConnected = useStore((state) => state.isBackendConnected);
+  const backendUrl = useStore((state) => state.backendUrl);
+  const checkBackend = useStore((state) => state.checkBackend);
 
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
-    fetchApiKeys();
-    fetchModels();
-    fetchTestCases();
+    if (backendUrl) {
+      checkBackend().then((connected) => {
+        if (connected) {
+          fetchApiKeys();
+          fetchModels();
+        }
+      });
+    }
+  }, [backendUrl]);
 
-    if (isMonitoring && models.length > 0) {
+  useEffect(() => {
+    if (isMonitoring && isBackendConnected && models.length > 0) {
       const runFetch = () => {
         models.forEach((model) => {
           runMultiTest(model.id);
@@ -34,7 +43,7 @@ export function useMonitoring() {
         intervalRef.current = null;
       }
     };
-  }, [models, samplingInterval, isMonitoring, runMultiTest, fetchModels, fetchApiKeys, fetchTestCases]);
+  }, [models, samplingInterval, isMonitoring, isBackendConnected, runMultiTest]);
 
-  return { isMonitoring };
+  return { isMonitoring, isBackendConnected };
 }

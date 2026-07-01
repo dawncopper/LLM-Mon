@@ -8,10 +8,10 @@
 
 - **实时质量监控**：固定周期采样，实时展示响应时间、成功率、错误率
 - **多模型管理**：支持添加多个 LLM 模型，卡片式展示
-- **API Key 管理**：支持 OpenAI、Anthropic、Azure 等多家服务商
+- **API Key 管理**：支持 OpenAI、Anthropic、Azure 等多家服务商，API Key AES 加密存储在后端
 - **繁忙度可视化**：彩色圆角矩形指示器，直观展示服务繁忙程度
 - **趋势图表**：迷你折线图展示响应时间历史趋势
-- **本地存储**：配置数据保存在浏览器 LocalStorage
+- **后端代理**：所有 API 请求通过后端代理，密钥不暴露给前端
 - **响应式设计**：适配桌面、平板、移动端
 
 ### 高级质量检测
@@ -32,6 +32,7 @@
 
 ## 技术栈
 
+### 前端
 - **前端框架**：React 18 + TypeScript
 - **构建工具**：Vite
 - **样式方案**：Tailwind CSS
@@ -39,6 +40,13 @@
 - **状态管理**：Zustand
 - **路由**：React Router DOM
 - **CI/CD**：GitHub Actions（GitHub Pages 自动部署）
+
+### 后端
+- **后端框架**：Express + TypeScript
+- **ORM**：Prisma
+- **数据库**：PostgreSQL
+- **加密**：AES-256-CBC（API Key 加密存储）
+- **定时任务**：node-cron
 
 ## 快速开始
 
@@ -75,15 +83,26 @@ npm run preview
 
 ## 使用说明
 
-### 1. 配置 API Key
+### 1. 配置后端服务
 
-首次使用时，系统会自动跳转到设置页面。点击「添加」按钮，输入：
+首次使用时，需要配置后端服务地址：
+
+1. 进入设置页面
+2. 在「后端服务」模块输入后端 API URL
+3. 点击「保存并连接」
+4. 连接成功后即可使用完整功能
+
+### 2. 配置 API Key
+
+在设置页面点击「添加」按钮，输入：
 
 - 名称：便于识别的标签
 - 服务商：OpenAI / Anthropic / Azure / 自定义
 - API Key：对应的 API 密钥
 
-### 2. 添加监控模型
+> API Key 以 AES-256-CBC 加密存储在后端数据库，前端无法读取明文。
+
+### 3. 添加监控模型
 
 在监控面板点击「添加模型」，填写：
 
@@ -92,7 +111,7 @@ npm run preview
 - API 端点：API 请求地址
 - 选择 API Key：使用已配置的 API Key
 
-### 3. 查看质量指标
+### 4. 查看质量指标
 
 每张模型卡片展示：
 
@@ -108,9 +127,9 @@ npm run preview
 
 点击「查看测试明细」可展开查看每个测试用例的详细结果。
 
-### 4. 自定义测试用例
+### 5. 自定义测试用例
 
-在设置页面的「测试用例」模块可以：
+测试用例按模型存储在后端数据库中，在模型详情或设置页面管理：
 
 - 查看内置测试用例（基础响应、Juice 指纹、推理测试、代码测试）
 - 添加自定义测试用例
@@ -123,7 +142,7 @@ npm run preview
 - **指纹**：提取模型内部参数（如 Juice 值）
 - **自定义**：用户自定义测试
 
-### 5. 采样间隔设置
+### 6. 采样间隔设置
 
 在设置页面可配置采样周期：15秒 / 30秒 / 60秒 / 120秒
 
@@ -208,11 +227,47 @@ src/
 - 测试结果：每个测试用例保留最近 20 条结果
 - 响应时间：滑动窗口平均值
 - 成功率/错误率：基于历史数据计算
-- 数据存储：全部保存在浏览器 LocalStorage
+- 数据存储：API Key、模型配置、指标数据全部存储在后端 PostgreSQL 数据库
+- 加密方式：API Key 使用 AES-256-CBC 加密存储
 
 ## 部署
 
-### GitHub Pages
+### 后端部署
+
+#### 环境变量
+
+参考 `backend/.env.example`：
+
+| 变量 | 说明 | 必填 |
+|------|------|------|
+| `DATABASE_URL` | PostgreSQL 数据库连接串 | 是 |
+| `PORT` | 服务端口，默认 3000 | 否 |
+| `ENCRYPTION_KEY` | API Key 加密密钥 | 是（生产环境务必修改） |
+
+#### Railway / Vercel / Heroku 部署
+
+1. 创建 PostgreSQL 数据库
+2. 设置环境变量（注意 `ENCRYPTION_KEY` 使用强随机字符串）
+3. 构建命令：`cd backend && npm install && npx prisma generate && npm run build`
+4. 启动命令：`cd backend && npm start`
+5. 部署后执行数据库迁移：`npx prisma db push`
+
+#### 本地运行后端
+
+```bash
+cd backend
+cp .env.example .env  # 编辑 .env 配置数据库和加密密钥
+npm install
+npx prisma generate
+npx prisma db push
+npm run dev
+```
+
+后端默认运行在 `http://localhost:3000`
+
+### 前端部署
+
+#### GitHub Pages
 
 项目已配置 GitHub Actions 自动部署工作流（`.github/workflows/deploy.yml`），推送到 `main` 分支后自动构建并部署到 GitHub Pages。
 
@@ -220,6 +275,24 @@ src/
 1. 进入 Settings → Pages
 2. Source 选择 **GitHub Actions**
 3. 保存后等待自动部署完成
+
+#### 其他静态托管
+
+```bash
+npm install
+npm run build
+```
+
+将 `dist/` 目录部署到任何静态托管服务（Netlify、Vercel、Cloudflare Pages 等）。
+
+**注意**：前端需要配置后端服务地址才能使用完整功能。在设置页面输入后端 URL 即可。
+
+## 安全说明
+
+- API Key 使用 AES-256-CBC 加密存储在后端数据库
+- 前端不接触 API Key 明文，所有 LLM 请求通过后端代理
+- 生产环境务必设置强 `ENCRYPTION_KEY`
+- 建议后端配置 HTTPS 和 CORS 限制
 
 ## License
 

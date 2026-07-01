@@ -1,12 +1,14 @@
-import { Plus, AlertCircle, AlertTriangle, CheckCircle, Activity, Zap, Shield } from 'lucide-react';
+import { Plus, AlertCircle, AlertTriangle, CheckCircle, Activity, Zap, Shield, Server } from 'lucide-react';
 import { useStore } from '@/store';
 import { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import ModelCard from '@/components/Dashboard/ModelCard';
 import AddModelModal from '@/components/Modal/AddModelModal';
 
 export default function Dashboard() {
   const models = useStore((state) => state.models);
   const metrics = useStore((state) => state.metrics);
+  const isBackendConnected = useStore((state) => state.isBackendConnected);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const healthSummary = useMemo(() => {
@@ -75,6 +77,22 @@ export default function Dashboard() {
 
   return (
     <div>
+      {!isBackendConnected && (
+        <div className="mb-6 p-4 bg-amber-orange/10 border border-amber-orange/30 rounded-2xl flex items-center gap-3">
+          <Server className="w-5 h-5 text-amber-orange flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-amber-orange">未连接后端服务</p>
+            <p className="text-xs text-zinc-500">请先配置后端服务地址以启用完整功能</p>
+          </div>
+          <Link
+            to="/settings"
+            className="px-4 py-2 bg-accent hover:bg-accent/80 text-white rounded-lg text-sm transition-all"
+          >
+            去配置
+          </Link>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-semibold mb-1">监控面板</h1>
