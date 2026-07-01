@@ -1,4 +1,4 @@
-import { Plus, AlertCircle, AlertTriangle, CheckCircle, Activity, Zap, Shield, TrendingUp } from 'lucide-react';
+import { Plus, AlertCircle, AlertTriangle, CheckCircle, Activity, Zap, Shield } from 'lucide-react';
 import { useStore } from '@/store';
 import { useState, useMemo } from 'react';
 import ModelCard from '@/components/Dashboard/ModelCard';
@@ -39,21 +39,19 @@ export default function Dashboard() {
     const warningCount = modelMetrics.filter((m) => m.qualityScore >= 50 && m.qualityScore < 80).length;
     const criticalCount = modelMetrics.filter((m) => m.qualityScore < 50).length;
 
-    const alerts = modelMetrics.map((m) => {
+    const alerts: { modelName: string; type: string; message: string }[] = [];
+    modelMetrics.forEach((m) => {
       const model = models.find((mod) => mod.id === m.modelId);
-      if (!model) return null;
+      if (!model) return;
       
       if (m.qualityScore < 50) {
-        return { modelName: model.name, type: 'critical', message: `质量分过低: ${m.qualityScore}` };
+        alerts.push({ modelName: model.name, type: 'critical', message: `质量分过低: ${m.qualityScore}` });
+      } else if (m.successRate < 80) {
+        alerts.push({ modelName: model.name, type: 'warning', message: `成功率下降: ${m.successRate}%` });
+      } else if (m.juiceValue && m.juiceValue < 256) {
+        alerts.push({ modelName: model.name, type: 'warning', message: `Juice值偏低: ${m.juiceValue}` });
       }
-      if (m.successRate < 80) {
-        return { modelName: model.name, type: 'warning', message: `成功率下降: ${m.successRate}%` };
-      }
-      if (m.juiceValue && m.juiceValue < 256) {
-        return { modelName: model.name, type: 'warning', message: `Juice值偏低: ${m.juiceValue}` };
-      }
-      return null;
-    }).filter(Boolean);
+    });
 
     return {
       avgQualityScore,

@@ -5,7 +5,6 @@ export function useMonitoring() {
   const models = useStore((state) => state.models);
   const samplingInterval = useStore((state) => state.samplingInterval);
   const isMonitoring = useStore((state) => state.isMonitoring);
-  const fetchMetrics = useStore((state) => state.fetchMetrics);
   const runMultiTest = useStore((state) => state.runMultiTest);
   const fetchModels = useStore((state) => state.fetchModels);
   const fetchApiKeys = useStore((state) => state.fetchApiKeys);

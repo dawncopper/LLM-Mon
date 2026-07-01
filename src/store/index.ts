@@ -123,7 +123,7 @@ export const useStore = create<AppStore>()(
       fetchApiKeys: async () => {
         try {
           const keys = await api.getKeys();
-          set({ apiKeys: keys });
+          set({ apiKeys: keys as ApiKeyConfig[] });
         } catch (err) {
           console.error('Failed to fetch API keys:', err);
         }

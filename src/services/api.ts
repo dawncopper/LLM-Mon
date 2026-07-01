@@ -1,9 +1,13 @@
+/// <reference types="vite/client" />
+import type { Provider } from '@/types';
+
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 interface ApiKey {
   id: string;
-  provider: string;
+  provider: Provider;
   label: string;
+  key?: string;
 }
 
 interface Model {
@@ -21,6 +25,7 @@ interface Metrics {
   successRate: number;
   busyLevel: string;
   lastUpdated: number;
+  juiceValue?: number;
   history: { timestamp: number; responseTime: number; success: boolean }[];
 }
 

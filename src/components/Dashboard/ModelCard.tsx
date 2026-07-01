@@ -36,13 +36,6 @@ export default function ModelCard({ model }: ModelCardProps) {
     return 'text-error-red';
   };
 
-  const getScoreBg = (score: number) => {
-    if (score >= 90) return 'bg-mint-green/20';
-    if (score >= 70) return 'bg-sky-blue/20';
-    if (score >= 50) return 'bg-amber-orange/20';
-    return 'bg-error-red/20';
-  };
-
   return (
     <div className="bg-primary rounded-2xl p-5 border border-accent/30 hover:border-accent/60 transition-all duration-300 hover:shadow-xl hover:shadow-accent/10 group">
       <div className="flex items-start justify-between mb-4">
