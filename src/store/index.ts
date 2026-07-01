@@ -130,14 +130,20 @@ export const useStore = create<AppStore>()(
       },
 
       addApiKey: async (apiKey) => {
-        const newKey = await api.addKey(apiKey);
+        // 直接存储到 localStorage，不调用后端 API
+        const id = generateId();
+        const newKey: ApiKeyConfig = {
+          id,
+          provider: apiKey.provider,
+          key: apiKey.key,
+          label: apiKey.label,
+        };
         set((state) => ({
-          apiKeys: [...state.apiKeys, { ...newKey, key: '' } as ApiKeyConfig],
+          apiKeys: [...state.apiKeys, newKey],
         }));
       },
 
       removeApiKey: async (id) => {
-        await api.deleteKey(id);
         set((state) => ({
           apiKeys: state.apiKeys.filter((k) => k.id !== id),
         }));
