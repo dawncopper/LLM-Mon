@@ -1,17 +1,15 @@
-import { prisma } from './lib/prisma.js';
-import { runMultiTest, DEFAULT_TEST_CASES } from './llm.js';
+import { prisma } from '../lib/prisma.js';
+import { runMultiTest, DEFAULT_TEST_CASES, type TestCase } from './llm.js';
 
 const METRICS_RETENTION_LIMIT = 100;
 
 async function cleanupOldMetrics(modelId: string): Promise<void> {
-  // 获取该模型的所有 metrics，按时间倒序
   const metrics = await prisma.metric.findMany({
     where: { modelId },
     orderBy: { timestamp: 'desc' },
     select: { id: true },
   });
 
-  // 如果超过限制，删除多余的旧记录
   if (metrics.length > METRICS_RETENTION_LIMIT) {
     const idsToDelete = metrics.slice(METRICS_RETENTION_LIMIT).map((m) => m.id);
     await prisma.metric.deleteMany({
@@ -30,8 +28,15 @@ export async function startMonitor(): Promise<void> {
     if (!model.apiKey) continue;
 
     try {
-      // 使用模型的自定义测试用例，如果没有则使用默认测试用例
-      const testCases = model.testCases.length > 0 ? model.testCases : DEFAULT_TEST_CASES;
+      const testCases: TestCase[] =
+        model.testCases.length > 0
+          ? model.testCases.map((tc) => ({
+              id: tc.id,
+              name: tc.name,
+              prompt: tc.prompt,
+              category: tc.category as TestCase['category'],
+            }))
+          : DEFAULT_TEST_CASES;
 
       const results = await runMultiTest(
         model.apiEndpoint,
