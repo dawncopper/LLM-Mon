@@ -6,21 +6,22 @@ export function useMonitoring() {
   const samplingInterval = useStore((state) => state.samplingInterval);
   const isMonitoring = useStore((state) => state.isMonitoring);
   const fetchMetrics = useStore((state) => state.fetchMetrics);
+  const runMultiTest = useStore((state) => state.runMultiTest);
   const fetchModels = useStore((state) => state.fetchModels);
   const fetchApiKeys = useStore((state) => state.fetchApiKeys);
+  const fetchTestCases = useStore((state) => state.fetchTestCases);
 
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Initial fetch
     fetchApiKeys();
     fetchModels();
+    fetchTestCases();
 
-    // Set up polling interval
     if (isMonitoring && models.length > 0) {
       const runFetch = () => {
         models.forEach((model) => {
-          fetchMetrics(model.id);
+          runMultiTest(model.id);
         });
       };
 
@@ -34,7 +35,7 @@ export function useMonitoring() {
         intervalRef.current = null;
       }
     };
-  }, [models, samplingInterval, isMonitoring, fetchMetrics, fetchModels, fetchApiKeys]);
+  }, [models, samplingInterval, isMonitoring, runMultiTest, fetchModels, fetchApiKeys, fetchTestCases]);
 
   return { isMonitoring };
 }

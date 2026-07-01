@@ -1,5 +1,6 @@
-import { Trash2, ExternalLink } from 'lucide-react';
+import { Trash2, ExternalLink, ChevronDown, ChevronUp, Zap, Activity, Shield } from 'lucide-react';
 import { useStore } from '@/store';
+import { useState } from 'react';
 import type { ModelConfig } from '@/types';
 import BusyIndicator from './BusyIndicator';
 import MiniChart from './MiniChart';
@@ -10,7 +11,9 @@ interface ModelCardProps {
 
 export default function ModelCard({ model }: ModelCardProps) {
   const metrics = useStore((state) => state.metrics[model.id]);
+  const testCases = useStore((state) => state.testCases);
   const removeModel = useStore((state) => state.removeModel);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleDelete = () => {
     if (confirm(`确定要删除模型 "${model.name}" 吗？`)) {
@@ -24,6 +27,20 @@ export default function ModelCard({ model }: ModelCardProps) {
       minute: '2-digit',
       second: '2-digit',
     });
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return 'text-mint-green';
+    if (score >= 70) return 'text-sky-blue';
+    if (score >= 50) return 'text-amber-orange';
+    return 'text-error-red';
+  };
+
+  const getScoreBg = (score: number) => {
+    if (score >= 90) return 'bg-mint-green/20';
+    if (score >= 70) return 'bg-sky-blue/20';
+    if (score >= 50) return 'bg-amber-orange/20';
+    return 'bg-error-red/20';
   };
 
   return (
@@ -56,16 +73,22 @@ export default function ModelCard({ model }: ModelCardProps) {
 
       {metrics && metrics.history.length > 0 ? (
         <>
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <div className="bg-background/50 rounded-xl p-3">
-              <div className="text-xs text-zinc-500 mb-1">响应时间</div>
+              <div className="flex items-center gap-1 text-xs text-zinc-500 mb-1">
+                <Zap className="w-3 h-3" />
+                响应时间
+              </div>
               <div className="font-mono text-lg font-semibold text-sky-blue">
                 {metrics.responseTime}
                 <span className="text-xs ml-1 text-zinc-500">ms</span>
               </div>
             </div>
             <div className="bg-background/50 rounded-xl p-3">
-              <div className="text-xs text-zinc-500 mb-1">成功率</div>
+              <div className="flex items-center gap-1 text-xs text-zinc-500 mb-1">
+                <Shield className="w-3 h-3" />
+                成功率
+              </div>
               <div className={`font-mono text-lg font-semibold ${
                 metrics.successRate >= 95 ? 'text-mint-green' :
                 metrics.successRate >= 80 ? 'text-amber-orange' : 'text-error-red'
@@ -75,24 +98,81 @@ export default function ModelCard({ model }: ModelCardProps) {
               </div>
             </div>
             <div className="bg-background/50 rounded-xl p-3">
-              <div className="text-xs text-zinc-500 mb-1">错误率</div>
+              <div className="flex items-center gap-1 text-xs text-zinc-500 mb-1">
+                <Activity className="w-3 h-3" />
+                质量分
+              </div>
+              <div className={`font-mono text-lg font-semibold ${getScoreColor(metrics.qualityScore)}`}>
+                {metrics.qualityScore}
+              </div>
+            </div>
+            <div className="bg-background/50 rounded-xl p-3">
+              <div className="text-xs text-zinc-500 mb-1">Juice</div>
               <div className={`font-mono text-lg font-semibold ${
-                metrics.errorRate <= 5 ? 'text-mint-green' :
-                metrics.errorRate <= 20 ? 'text-amber-orange' : 'text-error-red'
+                metrics.juiceValue && metrics.juiceValue >= 512 ? 'text-mint-green' :
+                metrics.juiceValue && metrics.juiceValue >= 256 ? 'text-sky-blue' :
+                metrics.juiceValue && metrics.juiceValue >= 128 ? 'text-amber-orange' :
+                metrics.juiceValue ? 'text-error-red' : 'text-zinc-500'
               }`}>
-                {metrics.errorRate}
-                <span className="text-xs ml-1 text-zinc-500">%</span>
+                {metrics.juiceValue || '-'}
               </div>
             </div>
           </div>
 
-          <div className="bg-background/30 rounded-xl p-3">
+          <div className="bg-background/30 rounded-xl p-3 mb-3">
             <div className="flex items-center justify-between text-xs text-zinc-500 mb-2">
               <span>响应时间趋势</span>
               <span>最近 {metrics.history.length} 次</span>
             </div>
             <MiniChart data={metrics.history} />
           </div>
+
+          <div className="flex items-center justify-between text-xs text-zinc-500 mb-3">
+            <span>一致性: <span className={getScoreColor(metrics.consistencyScore)}>{metrics.consistencyScore}%</span></span>
+            <span>错误率: <span className={metrics.errorRate <= 5 ? 'text-mint-green' : metrics.errorRate <= 20 ? 'text-amber-orange' : 'text-error-red'}>{metrics.errorRate}%</span></span>
+          </div>
+
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="w-full flex items-center justify-center gap-2 py-2 text-xs text-zinc-500 hover:text-sky-blue transition-colors"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="w-4 h-4" />
+                收起测试明细
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-4 h-4" />
+                查看测试明细
+              </>
+            )}
+          </button>
+
+          {isExpanded && (
+            <div className="mt-3 pt-3 border-t border-accent/20 space-y-2">
+              {testCases.map((testCase) => {
+                const results = metrics.testResults[testCase.id] || [];
+                const latestResult = results[results.length - 1];
+                
+                return (
+                  <div key={testCase.id} className="bg-background/30 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-zinc-400">{testCase.name}</span>
+                      <span className={`text-xs font-mono ${latestResult?.success ? 'text-mint-green' : 'text-error-red'}`}>
+                        {latestResult?.responseTime || '-'}ms
+                      </span>
+                    </div>
+                    {latestResult && (
+                      <div className="text-xs text-zinc-500 bg-primary/50 rounded p-2 max-h-20 overflow-y-auto">
+                        {latestResult.outputSnippet || 'No output'}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           <div className="mt-3 text-xs text-zinc-600 text-right">
             最后更新: {formatTime(metrics.lastUpdated)}

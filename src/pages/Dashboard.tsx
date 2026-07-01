@@ -1,12 +1,79 @@
-import { Plus, AlertCircle } from 'lucide-react';
+import { Plus, AlertCircle, AlertTriangle, CheckCircle, Activity, Zap, Shield, TrendingUp } from 'lucide-react';
 import { useStore } from '@/store';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import ModelCard from '@/components/Dashboard/ModelCard';
 import AddModelModal from '@/components/Modal/AddModelModal';
 
 export default function Dashboard() {
   const models = useStore((state) => state.models);
+  const metrics = useStore((state) => state.metrics);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const healthSummary = useMemo(() => {
+    const modelMetrics = models.map((model) => metrics[model.id]).filter(Boolean);
+    
+    if (modelMetrics.length === 0) {
+      return {
+        avgQualityScore: 0,
+        avgResponseTime: 0,
+        avgSuccessRate: 0,
+        healthyCount: 0,
+        warningCount: 0,
+        criticalCount: 0,
+        hasAlerts: false,
+        alerts: [],
+      };
+    }
+
+    const avgQualityScore = Math.round(
+      modelMetrics.reduce((sum, m) => sum + m.qualityScore, 0) / modelMetrics.length
+    );
+    const avgResponseTime = Math.round(
+      modelMetrics.reduce((sum, m) => sum + m.responseTime, 0) / modelMetrics.length
+    );
+    const avgSuccessRate = Math.round(
+      modelMetrics.reduce((sum, m) => sum + m.successRate, 0) / modelMetrics.length
+    );
+
+    const healthyCount = modelMetrics.filter((m) => m.qualityScore >= 80).length;
+    const warningCount = modelMetrics.filter((m) => m.qualityScore >= 50 && m.qualityScore < 80).length;
+    const criticalCount = modelMetrics.filter((m) => m.qualityScore < 50).length;
+
+    const alerts = modelMetrics.map((m) => {
+      const model = models.find((mod) => mod.id === m.modelId);
+      if (!model) return null;
+      
+      if (m.qualityScore < 50) {
+        return { modelName: model.name, type: 'critical', message: `质量分过低: ${m.qualityScore}` };
+      }
+      if (m.successRate < 80) {
+        return { modelName: model.name, type: 'warning', message: `成功率下降: ${m.successRate}%` };
+      }
+      if (m.juiceValue && m.juiceValue < 256) {
+        return { modelName: model.name, type: 'warning', message: `Juice值偏低: ${m.juiceValue}` };
+      }
+      return null;
+    }).filter(Boolean);
+
+    return {
+      avgQualityScore,
+      avgResponseTime,
+      avgSuccessRate,
+      healthyCount,
+      warningCount,
+      criticalCount,
+      hasAlerts: alerts.length > 0,
+      alerts,
+    };
+  }, [models, metrics]);
+
+  const getOverallStatus = () => {
+    if (healthSummary.criticalCount > 0) return { label: '异常', color: 'text-error-red', bg: 'bg-error-red/20' };
+    if (healthSummary.warningCount > 0) return { label: '警告', color: 'text-amber-orange', bg: 'bg-amber-orange/20' };
+    return { label: '健康', color: 'text-mint-green', bg: 'bg-mint-green/20' };
+  };
+
+  const overallStatus = getOverallStatus();
 
   return (
     <div>
@@ -25,6 +92,103 @@ export default function Dashboard() {
           添加模型
         </button>
       </div>
+
+      {models.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className={`bg-primary rounded-2xl p-5 border border-accent/30 ${overallStatus.bg}`}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-zinc-500">整体状态</span>
+              {healthSummary.hasAlerts ? (
+                <AlertTriangle className={`w-5 h-5 ${overallStatus.color}`} />
+              ) : (
+                <CheckCircle className="w-5 h-5 text-mint-green" />
+              )}
+            </div>
+            <div className={`text-2xl font-semibold ${overallStatus.color}`}>
+              {overallStatus.label}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <span className="px-2 py-1 text-xs rounded-full bg-mint-green/20 text-mint-green">
+                {healthSummary.healthyCount} 健康
+              </span>
+              <span className="px-2 py-1 text-xs rounded-full bg-amber-orange/20 text-amber-orange">
+                {healthSummary.warningCount} 警告
+              </span>
+              <span className="px-2 py-1 text-xs rounded-full bg-error-red/20 text-error-red">
+                {healthSummary.criticalCount} 异常
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-primary rounded-2xl p-5 border border-accent/30">
+            <div className="flex items-center gap-2 text-sm text-zinc-500 mb-3">
+              <Activity className="w-4 h-4" />
+              平均质量分
+            </div>
+            <div className={`text-2xl font-semibold ${
+              healthSummary.avgQualityScore >= 80 ? 'text-mint-green' :
+              healthSummary.avgQualityScore >= 50 ? 'text-amber-orange' : 'text-error-red'
+            }`}>
+              {healthSummary.avgQualityScore}
+            </div>
+          </div>
+
+          <div className="bg-primary rounded-2xl p-5 border border-accent/30">
+            <div className="flex items-center gap-2 text-sm text-zinc-500 mb-3">
+              <Zap className="w-4 h-4" />
+              平均响应时间
+            </div>
+            <div className="text-2xl font-semibold text-sky-blue">
+              {healthSummary.avgResponseTime}
+              <span className="text-sm font-normal text-zinc-500 ml-1">ms</span>
+            </div>
+          </div>
+
+          <div className="bg-primary rounded-2xl p-5 border border-accent/30">
+            <div className="flex items-center gap-2 text-sm text-zinc-500 mb-3">
+              <Shield className="w-4 h-4" />
+              平均成功率
+            </div>
+            <div className={`text-2xl font-semibold ${
+              healthSummary.avgSuccessRate >= 95 ? 'text-mint-green' :
+              healthSummary.avgSuccessRate >= 80 ? 'text-amber-orange' : 'text-error-red'
+            }`}>
+              {healthSummary.avgSuccessRate}
+              <span className="text-sm font-normal text-zinc-500 ml-1">%</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {healthSummary.hasAlerts && models.length > 0 && (
+        <div className="bg-primary rounded-2xl p-5 border border-error-red/30 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-5 h-5 text-error-red" />
+            <span className="font-semibold">告警通知</span>
+            <span className="text-xs text-zinc-500">({healthSummary.alerts.length})</span>
+          </div>
+          <div className="space-y-2">
+            {healthSummary.alerts.map((alert, index) => (
+              <div
+                key={index}
+                className={`flex items-center gap-3 p-3 rounded-xl ${
+                  alert.type === 'critical' ? 'bg-error-red/10' : 'bg-amber-orange/10'
+                }`}
+              >
+                {alert.type === 'critical' ? (
+                  <AlertCircle className="w-4 h-4 text-error-red flex-shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-amber-orange flex-shrink-0" />
+                )}
+                <span className="text-sm">
+                  <span className="font-medium">{alert.modelName}</span>
+                  <span className="text-zinc-500 ml-2">{alert.message}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {models.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
