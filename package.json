@@ -3,10 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "description": "LLM service quality monitoring platform",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "npx tsc -b && npx vite build",
     "preview": "vite preview",
+    "lint": "eslint .",
     "start": "cd backend && npm start",
     "backend:install": "cd backend && npm install",
     "backend:build": "cd backend && npx prisma generate && npm run build",
@@ -14,6 +16,28 @@
     "backend:db-push": "cd backend && npx prisma db push",
     "frontend:install": "npm install",
     "frontend:build": "npx tsc -b && npx vite build"
+  },
+  "dependencies": {
+    "lucide-react": "^0.441.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.9.0",
+    "eslint-plugin-react-hooks": "^5.1.0-rc.0",
+    "eslint-plugin-react-refresh": "^0.4.9",
+    "globals": "^15.9.0",
+    "postcss": "^8.4.45",
+    "tailwindcss": "^3.4.10",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.2"
   },
   "engines": {
     "node": ">=18"
