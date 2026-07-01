@@ -1,6 +1,7 @@
-import { X, ExternalLink } from 'lucide-react';
+import { X, ExternalLink, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { useStore } from '@/store';
+import { PRESET_PROVIDERS, type PresetModel } from '@/data/presetModels';
 
 interface AddModelModalProps {
   isOpen: boolean;
@@ -18,6 +19,23 @@ export default function AddModelModal({ isOpen, onClose }: AddModelModalProps) {
   const addModel = useStore((state) => state.addModel);
 
   if (!isOpen) return null;
+
+  const handlePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (!value) return;
+
+    let selected: PresetModel | undefined;
+    for (const provider of PRESET_PROVIDERS) {
+      selected = provider.models.find((m) => m.name === value);
+      if (selected) break;
+    }
+
+    if (selected) {
+      setName(selected.name);
+      setApiDocUrl(selected.apiDocUrl);
+      setApiEndpoint(selected.apiEndpoint);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +78,32 @@ export default function AddModelModal({ isOpen, onClose }: AddModelModalProps) {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
+            <label className="block text-sm font-medium text-zinc-400 mb-2">
+              <Sparkles className="w-4 h-4 inline mr-1" />
+              选择预设模型
+            </label>
+            <select
+              onChange={handlePresetChange}
+              defaultValue=""
+              className="w-full px-4 py-3 bg-background rounded-xl border border-accent/50 focus:border-sky-blue focus:ring-1 focus:ring-sky-blue outline-none transition-all"
+            >
+              <option value="">自定义模型...</option>
+              {PRESET_PROVIDERS.map((provider) => (
+                <optgroup key={provider.provider} label={provider.name}>
+                  {provider.models.map((model) => (
+                    <option key={model.name} value={model.name}>
+                      {model.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-zinc-500">
+              选择预设模型可自动填充信息，也可手动修改
+            </p>
+          </div>
+
+          <div className="border-t border-accent/30 pt-4">
             <label className="block text-sm font-medium text-zinc-400 mb-2">
               模型名称
             </label>
