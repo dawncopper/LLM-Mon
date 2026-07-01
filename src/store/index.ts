@@ -156,12 +156,7 @@ export const useStore = create<AppStore>()(
       fetchModels: async () => {
         try {
           set({ isLoading: true });
-          const models = await api.getModels();
-          set({ models: models as ModelConfig[], isLoading: false });
-          
-          for (const model of models) {
-            get().fetchMetrics(model.id);
-          }
+          set({ isLoading: false });
         } catch (err) {
           console.error('Failed to fetch models:', err);
           set({ isLoading: false });
@@ -169,17 +164,22 @@ export const useStore = create<AppStore>()(
       },
 
       addModel: async (model) => {
-        const newModel = await api.addModel(model);
-        const id = newModel.id;
+        const id = generateId();
+        const newModel: ModelConfig = {
+          id,
+          name: model.name,
+          apiDocUrl: model.apiDocUrl || '',
+          apiEndpoint: model.apiEndpoint,
+          apiKeyId: model.apiKeyId,
+          createdAt: Date.now(),
+        };
         set((state) => ({
-          models: [...state.models, { ...newModel, createdAt: Date.now() } as ModelConfig],
+          models: [...state.models, newModel],
         }));
-        get().fetchMetrics(id);
         return id;
       },
 
       removeModel: async (id) => {
-        await api.deleteModel(id);
         set((state) => {
           const { [id]: _, ...restMetrics } = state.metrics;
           return {
@@ -189,45 +189,8 @@ export const useStore = create<AppStore>()(
         });
       },
 
-      fetchMetrics: async (modelId) => {
-        try {
-          const metrics = await api.getMetrics(modelId);
-          const currentMetrics = get().metrics[modelId];
-          const existingHistory = currentMetrics?.history || [];
-          
-          const newHistoryEntry: HistoryEntry = {
-            timestamp: metrics.lastUpdated || Date.now(),
-            responseTime: metrics.responseTime,
-            success: metrics.successRate > 0,
-          };
-          
-          const updatedHistory = [...existingHistory, newHistoryEntry].slice(-HISTORY_LIMIT);
-          const consistencyScore = calculateConsistencyScore(updatedHistory);
-          const qualityScore = calculateQualityScore(metrics.successRate, consistencyScore, metrics.responseTime);
-          
-          const transformed: QualityMetrics = {
-            modelId: metrics.modelId,
-            responseTime: metrics.responseTime,
-            errorRate: metrics.errorRate,
-            successRate: metrics.successRate,
-            busyLevel: metrics.busyLevel as BusyLevel,
-            lastUpdated: metrics.lastUpdated || Date.now(),
-            history: updatedHistory,
-            qualityScore,
-            consistencyScore,
-            juiceValue: metrics.juiceValue,
-            testResults: currentMetrics?.testResults || {},
-          };
-          
-          set((state) => ({
-            metrics: {
-              ...state.metrics,
-              [modelId]: transformed,
-            },
-          }));
-        } catch (err) {
-          console.error('Failed to fetch metrics:', err);
-        }
+      fetchMetrics: async (_modelId) => {
+        // 指标数据通过 runMultiTest 直接在前端计算，不调用后端
       },
 
       runMultiTest: async (modelId) => {
