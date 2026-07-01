@@ -2,8 +2,8 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-COPY backend/package*.json ./
-RUN npm ci
+COPY backend/package.json ./
+RUN npm install
 
 COPY backend/prisma ./prisma
 RUN npx prisma generate
@@ -14,4 +14,4 @@ RUN npm run build
 
 EXPOSE 3001
 
-CMD sh -c "npx prisma db push && node dist/index.js"
+CMD ["sh", "-c", "npx prisma db push && node dist/index.js"]
