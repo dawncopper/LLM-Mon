@@ -54,6 +54,9 @@ router.get('/:id/metrics', async (req, res) => {
       qualityScore: 0,
       consistencyScore: 100,
       juiceValue: null,
+      juiceTrend: null,
+      juiceBaseline: null,
+      throughputTPS: null,
     });
   }
 
@@ -69,18 +72,27 @@ router.get('/:id/metrics', async (req, res) => {
   const variance = responseTimes.reduce((a, b) => a + (b - mean) ** 2, 0) / responseTimes.length;
   const stdDev = Math.sqrt(variance);
   const cv = mean > 0 ? stdDev / mean : 0;
-  const consistencyScore = Math.max(0, Math.min(100, Math.round((1 - cv) * 100)));
+
+  const successRate = 100 - errorRate;
+
+  // 使用与 monitor 一致的质量分算法（优先取数据库已算好的值）
+  const latestMetric = metrics[0];
+  const juiceValue = latestMetric.juiceValue;
+  const juiceTrend = (latestMetric as any).juiceTrend as string | null | undefined;
+  const juiceBaseline = (latestMetric as any).juiceBaseline as number | null | undefined;
+  const throughputTPS = (latestMetric as any).throughputTPS as number | null | undefined;
+  const dbQualityScore = (latestMetric as any).qualityScore as number | null | undefined;
+  const dbConsistencyScore = (latestMetric as any).consistencyScore as number | null | undefined;
 
   let speedScore = 25;
   if (avgResponseTime < 1000) speedScore = 100;
   else if (avgResponseTime < 3000) speedScore = 75;
   else if (avgResponseTime < 5000) speedScore = 50;
 
-  const successRate = 100 - errorRate;
-  const qualityScore = Math.round(successRate * 0.4 + consistencyScore * 0.3 + speedScore * 0.3);
-
-  const latestMetric = metrics[0];
-  const juiceValue = latestMetric.juiceValue;
+  // 如果数据库有预计算值则直接使用，否则 fallback 到旧公式
+  const fallbackQuality = Math.round(successRate * 0.4 + Math.max(0, Math.min(100, Math.round((1 - cv) * 100))) * 0.3 + speedScore * 0.3);
+  const qualityScore = dbQualityScore ?? fallbackQuality;
+  const consistencyScore = dbConsistencyScore ?? Math.max(0, Math.min(100, Math.round((1 - cv) * 100)));
 
   res.json({
     modelId: id,
@@ -97,6 +109,9 @@ router.get('/:id/metrics', async (req, res) => {
     qualityScore,
     consistencyScore,
     juiceValue,
+    juiceTrend: juiceTrend ?? null,
+    juiceBaseline: juiceBaseline ?? null,
+    throughputTPS: throughputTPS ?? null,
   });
 });
 
@@ -127,6 +142,9 @@ router.post('/:id/test', async (req, res) => {
     let successCount = 0;
     let totalTests = 0;
     let juiceValue: number | null = null;
+    let juiceTrend: string | null = null;
+    let juiceBaseline: number | null = null;
+    let throughputTPS: number | null = null;
 
     for (const [testId, result] of Object.entries(results)) {
       testResults[testId] = {
@@ -135,25 +153,52 @@ router.post('/:id/test', async (req, res) => {
         outputSnippet: result.output.slice(0, 500),
         score: result.success ? 100 : 0,
       };
+      if (result.juiceValue !== undefined) {
+        juiceValue = result.juiceValue as number;
+      }
+      if ((result as any).wordCount) {
+        throughputTPS = parseFloat((((result as any).wordCount as number) / ((result as any).responseTime / 1000)).toFixed(2));
+      }
       totalResponseTime += result.responseTime;
       if (result.success) successCount++;
       totalTests++;
-      if (result.juiceValue !== undefined) {
-        juiceValue = result.juiceValue;
-      }
     }
 
     const avgResponseTime = totalTests > 0 ? Math.round(totalResponseTime / totalTests) : 0;
     const successRate = totalTests > 0 ? Math.round((successCount / totalTests) * 100) : 0;
 
-    await prisma.metric.create({
-      data: {
-        modelId: model.id,
-        responseTime: avgResponseTime,
-        success: successCount > 0,
-        juiceValue: juiceValue ?? undefined,
-      },
-    });
+    // 获取 Juice 基准线和趋势
+    if (juiceValue !== null) {
+      const recentMetrics = await prisma.metric.findMany({
+        where: { modelId: id, juiceValue: { not: null } },
+        orderBy: { timestamp: 'desc' },
+        select: { juiceValue: true },
+        take: 5,
+      });
+
+      if (recentMetrics.length > 0) {
+        const juiceValues = recentMetrics.map(m => m.juiceValue).filter(v => v !== null) as number[];
+        juiceBaseline = Math.round(juiceValues.reduce((a, b) => a + b, 0) / juiceValues.length);
+
+        const diff = ((juiceValue - juiceBaseline!) / juiceBaseline!) * 100;
+        juiceTrend = diff > 5 ? 'improving' : diff < -5 ? 'degrading' : 'stable';
+      } else {
+        juiceBaseline = juiceValue;
+        juiceTrend = 'stable';
+      }
+    }
+
+    const metricData: any = {
+      modelId: model.id,
+      responseTime: avgResponseTime,
+      success: successCount > 0,
+      juiceValue: juiceValue ?? undefined,
+    };
+    if (juiceTrend) metricData.juiceTrend = juiceTrend;
+    if (juiceBaseline !== null) metricData.juiceBaseline = juiceBaseline;
+    if (throughputTPS !== null) metricData.throughputTPS = throughputTPS;
+
+    await prisma.metric.create({ data: metricData });
 
     res.json({
       modelId: model.id,
@@ -161,6 +206,9 @@ router.post('/:id/test', async (req, res) => {
       successRate,
       errorRate: 100 - successRate,
       juiceValue,
+      juiceTrend,
+      juiceBaseline,
+      throughputTPS,
       testResults,
       timestamp: Date.now(),
     });

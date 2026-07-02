@@ -42,6 +42,9 @@ export interface MetricsResponse {
   busyLevel: string;
   lastUpdated: number;
   juiceValue: number | null;
+  juiceTrend?: string | null;
+  juiceBaseline?: number | null;
+  throughputTPS?: number | null;
   qualityScore?: number;
   consistencyScore?: number;
   history: { timestamp: number; responseTime: number; success: boolean }[];
@@ -52,6 +55,7 @@ export interface TestResultResponse {
   success: boolean;
   outputSnippet: string;
   score?: number;
+  juiceValue?: number;
 }
 
 export interface RunTestResponse {
@@ -60,6 +64,10 @@ export interface RunTestResponse {
   successRate: number;
   errorRate: number;
   juiceValue: number | null;
+  juiceTrend?: string;
+  juiceBaseline?: number;
+  throughputTPS?: number;
+  qualityScore?: number;
   testResults: Record<string, TestResultResponse>;
   timestamp: number;
 }

@@ -34,13 +34,19 @@ model Model {
 }
 
 model Metric {
-  id           String   @id @default(cuid())
-  responseTime Int      // ms
-  success      Boolean
-  juiceValue   Int?
-  timestamp    DateTime @default(now())
-  modelId      String
-  model        Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  id                    String   @id @default(cuid())
+  responseTime          Int      // ms
+  success               Boolean
+  juiceValue            Int?
+  juiceTrend            String?  // "stable" | "degrading" | "improving" | null
+  juiceBaseline         Int?     // 最近 5 次 Juice 平均值作为基准线
+  successRate           Float?   // 本轮所有测试用例的成功率 0-100
+  qualityScore          Float?   // 综合质量分 0-100
+  consistencyScore      Float?   // 响应时间一致性分数 0-100
+  throughputTPS         Float?   // 吞吐量 (words/sec)
+  timestamp             DateTime @default(now())
+  modelId               String
+  model                 Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
 
   @@index([modelId])
   @@index([timestamp])

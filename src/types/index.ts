@@ -2,7 +2,7 @@ export type BusyLevel = 'idle' | 'normal' | 'busy' | 'danger';
 
 export type Provider = 'openai' | 'anthropic' | 'azure' | 'custom';
 
-export type TestCategory = 'basic' | 'reasoning' | 'fingerprint' | 'custom';
+export type TestCategory = 'basic' | 'reasoning' | 'fingerprint' | 'factuality' | 'boundary' | 'throughput' | 'custom';
 
 export interface ApiKeyConfig {
   id: string;
@@ -54,6 +54,9 @@ export interface QualityMetrics {
   qualityScore: number;
   consistencyScore: number;
   juiceValue?: number;
+  juiceTrend?: string;        // "stable" | "degrading" | "improving"
+  juiceBaseline?: number;     // Juice 基准线
+  throughputTPS?: number;     // 吞吐量（words/sec）
   testResults: Record<string, TestResult[]>;
 }
 

@@ -66,7 +66,7 @@ export default function ModelCard({ model }: ModelCardProps) {
 
       {metrics && metrics.history.length > 0 ? (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
             <div className="bg-background/50 rounded-xl p-3">
               <div className="flex items-center gap-1 text-xs text-zinc-500 mb-1">
                 <Zap className="w-3 h-3" />
@@ -100,7 +100,10 @@ export default function ModelCard({ model }: ModelCardProps) {
               </div>
             </div>
             <div className="bg-background/50 rounded-xl p-3">
-              <div className="text-xs text-zinc-500 mb-1">Juice</div>
+              <div className="flex items-center gap-1 text-xs text-zinc-500 mb-1">
+                🔥
+                Juice
+              </div>
               <div className={`font-mono text-lg font-semibold ${
                 metrics.juiceValue && metrics.juiceValue >= 512 ? 'text-mint-green' :
                 metrics.juiceValue && metrics.juiceValue >= 256 ? 'text-sky-blue' :
@@ -108,6 +111,21 @@ export default function ModelCard({ model }: ModelCardProps) {
                 metrics.juiceValue ? 'text-error-red' : 'text-zinc-500'
               }`}>
                 {metrics.juiceValue || '-'}
+                {metrics.juiceTrend && (
+                  <span className="ml-1 text-xs">
+                    {metrics.juiceTrend === 'degrading' ? '📉' : metrics.juiceTrend === 'improving' ? '📈' : '➡️'}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="bg-background/50 rounded-xl p-3">
+              <div className="flex items-center gap-1 text-xs text-zinc-500 mb-1">
+                🚀
+                吞吐
+              </div>
+              <div className="font-mono text-lg font-semibold text-sky-blue">
+                {metrics.throughputTPS || '-'}
+                <span className="text-xs ml-1 text-zinc-500">w/s</span>
               </div>
             </div>
           </div>
@@ -123,6 +141,9 @@ export default function ModelCard({ model }: ModelCardProps) {
           <div className="flex items-center justify-between text-xs text-zinc-500 mb-3">
             <span>一致性: <span className={getScoreColor(metrics.consistencyScore)}>{metrics.consistencyScore}%</span></span>
             <span>错误率: <span className={metrics.errorRate <= 5 ? 'text-mint-green' : metrics.errorRate <= 20 ? 'text-amber-orange' : 'text-error-red'}>{metrics.errorRate}%</span></span>
+            {metrics.juiceBaseline && (
+              <span>基准线: <span className="text-sky-blue">{metrics.juiceBaseline}</span></span>
+            )}
           </div>
 
           <button

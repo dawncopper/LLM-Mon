@@ -46,6 +46,11 @@ export default function Dashboard() {
       const model = models.find((mod) => mod.id === m.modelId);
       if (!model) return;
       
+      // Juice 降级趋势告警
+      if (m.juiceTrend === 'degrading' && m.juiceValue) {
+        alerts.push({ modelName: model.name, type: 'warning', message: `Juice值降级: ${m.juiceValue} (基准: ${m.juiceBaseline ?? '-'})` });
+      }
+      
       if (m.qualityScore < 50) {
         alerts.push({ modelName: model.name, type: 'critical', message: `质量分过低: ${m.qualityScore}` });
       } else if (m.successRate < 80) {
