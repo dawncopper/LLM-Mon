@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import type { Provider, TestCase } from '@/types';
+import { useStore } from '@/store';
 
 function getApiBase(): string {
   const stored = localStorage.getItem('llm-monitor-storage');
@@ -14,6 +15,23 @@ function getApiBase(): string {
     }
   }
   return import.meta.env.VITE_API_URL || '';
+}
+
+/** 获取当前 JWT Token（从 zustand store） */
+function getToken(): string | null {
+  return useStore.getState().token;
+}
+
+/** 构造带认证信息的 headers */
+function getHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  const token = getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
 }
 
 export interface ApiKeyResponse {
@@ -78,47 +96,96 @@ export const api = {
     return res.json();
   },
 
-  // Keys
-  async getKeys(): Promise<ApiKeyResponse[]> {
-    const res = await fetch(`${getApiBase()}/api/keys`);
+  // Auth
+  async login(email: string, password: string): Promise<{ token: string; user: { id: string; email: string } }> {
+    const res = await fetch(`${getApiBase()}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Login failed' }));
+      throw new Error(err.error || 'Login failed');
+    }
     return res.json();
   },
+
+  async register(email: string, password: string): Promise<{ token: string; user: { id: string; email: string } }> {
+    const res = await fetch(`${getApiBase()}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Registration failed' }));
+      throw new Error(err.error || 'Registration failed');
+    }
+    return res.json();
+  },
+
+  // Keys
+  async getKeys(): Promise<ApiKeyResponse[]> {
+    const res = await fetch(`${getApiBase()}/api/keys`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 401) throw new Error('Unauthorized - please login again');
+      throw new Error(await res.text());
+    }
+    return res.json();
+  },
+
   async addKey(data: { provider: string; key: string; label: string }): Promise<ApiKeyResponse> {
     const res = await fetch(`${getApiBase()}/api/keys`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
+
   async deleteKey(id: string): Promise<void> {
-    const res = await fetch(`${getApiBase()}/api/keys/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${getApiBase()}/api/keys/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
     if (!res.ok) throw new Error('Failed to delete key');
   },
 
   // Models
   async getModels(): Promise<ModelResponse[]> {
-    const res = await fetch(`${getApiBase()}/api/models`);
+    const res = await fetch(`${getApiBase()}/api/models`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
+
   async addModel(data: { name: string; apiDocUrl?: string; apiEndpoint: string; apiKeyId: string }): Promise<ModelResponse> {
     const res = await fetch(`${getApiBase()}/api/models`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
+
   async deleteModel(id: string): Promise<void> {
-    const res = await fetch(`${getApiBase()}/api/models/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${getApiBase()}/api/models/${id}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
     if (!res.ok) throw new Error('Failed to delete model');
   },
 
   // Metrics
   async getMetrics(modelId: string, hours = 24): Promise<MetricsResponse> {
-    const res = await fetch(`${getApiBase()}/api/models/${modelId}/metrics?hours=${hours}`);
+    const res = await fetch(`${getApiBase()}/api/models/${modelId}/metrics?hours=${hours}`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
 
@@ -126,7 +193,7 @@ export const api = {
   async runTest(modelId: string, testCases?: TestCase[]): Promise<RunTestResponse> {
     const res = await fetch(`${getApiBase()}/api/models/${modelId}/test`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify({ testCases }),
     });
     if (!res.ok) throw new Error(await res.text());
@@ -135,20 +202,28 @@ export const api = {
 
   // Test cases (per model)
   async getTestCases(modelId: string): Promise<TestCase[]> {
-    const res = await fetch(`${getApiBase()}/api/models/${modelId}/test-cases`);
+    const res = await fetch(`${getApiBase()}/api/models/${modelId}/test-cases`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
+
   async addTestCase(modelId: string, data: { name: string; prompt: string; category: string }): Promise<TestCase> {
     const res = await fetch(`${getApiBase()}/api/models/${modelId}/test-cases`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getHeaders(),
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error(await res.text());
     return res.json();
   },
+
   async deleteTestCase(modelId: string, testCaseId: string): Promise<void> {
-    const res = await fetch(`${getApiBase()}/api/models/${modelId}/test-cases/${testCaseId}`, { method: 'DELETE' });
+    const res = await fetch(`${getApiBase()}/api/models/${modelId}/test-cases/${testCaseId}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
     if (!res.ok) throw new Error('Failed to delete test case');
   },
 };

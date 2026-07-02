@@ -1,4 +1,4 @@
-import { Key, Trash2, Plus, AlertCircle, CheckCircle, Settings as SettingsIcon, Server } from 'lucide-react';
+import { Key, Trash2, Plus, AlertCircle, CheckCircle, Settings as SettingsIcon, Server, LogOut, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useStore } from '@/store';
 import type { Provider } from '@/types';
@@ -21,6 +21,9 @@ export default function Settings() {
   const setBackendUrl = useStore((state) => state.setBackendUrl);
   const isBackendConnected = useStore((state) => state.isBackendConnected);
   const checkBackend = useStore((state) => state.checkBackend);
+  const token = useStore((state) => state.token);
+  const user = useStore((state) => state.user);
+  const clearToken = useStore((state) => state.clearToken);
 
   const [isAddingKey, setIsAddingKey] = useState(false);
   const [newLabel, setNewLabel] = useState('');
@@ -33,9 +36,9 @@ export default function Settings() {
   useEffect(() => {
     if (backendUrl) {
       checkBackend();
-      fetchApiKeys();
+      if (token) fetchApiKeys();
     }
-  }, []);
+  }, [backendUrl, token]);
 
   const handleAddKey = async () => {
     if (!newLabel.trim() || !newKey.trim()) return;
@@ -68,7 +71,7 @@ export default function Settings() {
     try {
       const connected = await checkBackend();
       if (connected) {
-        fetchApiKeys();
+        if (token) fetchApiKeys();
       } else {
         setError('无法连接到后端服务');
       }
@@ -79,12 +82,42 @@ export default function Settings() {
     }
   };
 
+  const handleLogout = () => {
+    clearToken();
+    // 清空本地 API keys 和 models（它们来自后端）
+    window.location.reload();
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-semibold mb-2">设置</h1>
         <p className="text-sm text-zinc-500">配置后端服务和 API Key</p>
       </div>
+
+      {/* User Section */}
+      {token && user && (
+        <section className="bg-primary rounded-2xl p-6 border border-accent/30 mb-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-accent/50 flex items-center justify-center">
+                <User className="w-5 h-5 text-sky-blue" />
+              </div>
+              <div>
+                <h2 className="font-semibold">当前账户</h2>
+                <p className="text-xs text-zinc-500">{user.email}</p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-600 hover:bg-red-500/20 rounded-lg transition-all text-sm font-medium"
+            >
+              <LogOut className="w-4 h-4" />
+              登出
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Backend Section */}
       <section className="bg-primary rounded-2xl p-6 border border-accent/30 mb-6">
@@ -145,7 +178,7 @@ export default function Settings() {
               <p className="text-xs text-zinc-500">加密存储在后端数据库</p>
             </div>
           </div>
-          {!isAddingKey && isBackendConnected && (
+          {!isAddingKey && isBackendConnected && token && (
             <button
               onClick={() => setIsAddingKey(true)}
               className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/80 text-white rounded-lg transition-all"
@@ -156,14 +189,21 @@ export default function Settings() {
           )}
         </div>
 
-        {!isBackendConnected && (
+        {!token && (
+          <div className="text-center py-8 text-zinc-500">
+            <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>请先登录</p>
+          </div>
+        )}
+
+        {token && !isBackendConnected && (
           <div className="text-center py-8 text-zinc-500">
             <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>请先配置并连接后端服务</p>
           </div>
         )}
 
-        {isBackendConnected && apiKeys.length === 0 && !isAddingKey ? (
+        {token && isBackendConnected && apiKeys.length === 0 && !isAddingKey ? (
           <div className="text-center py-8 text-zinc-500">
             <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>暂无 API Key，请先添加</p>

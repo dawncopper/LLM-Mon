@@ -5,9 +5,12 @@ import { prisma } from './lib/prisma.js';
 import { startMonitor } from './services/monitor.js';
 import modelsRouter from './routes/models.js';
 import keysRouter from './routes/keys.js';
+import authRouter from './routes/auth.js';
+import { authMiddleware } from './middleware/auth.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const REQUIRE_AUTH = process.env.REQUIRE_AUTH !== 'false'; // 默认启用认证
 
 // CORS 配置
 const corsOrigins = process.env.CORS_ORIGINS
@@ -22,14 +25,28 @@ app.use(
 );
 app.use(express.json());
 
-// 路由
-app.use('/api/models', modelsRouter);
-app.use('/api/keys', keysRouter);
+// 公开路由（无需认证）
+app.use('/api/auth', authRouter);
 
-// 健康检查
+// 健康检查（公开）
 app.get('/api/health', (_, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
 });
+
+// 认证保护的中间件（可配置关闭）
+function maybeAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (!REQUIRE_AUTH) {
+    // 未启用认证时，模拟一个 userId（方便本地开发）
+    req.userId = 'dev-user';
+    next();
+  } else {
+    authMiddleware(req, res, next);
+  }
+}
+
+// 受保护路由
+app.use('/api/keys', maybeAuth, keysRouter);
+app.use('/api/models', maybeAuth, modelsRouter);
 
 // 错误处理
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -48,5 +65,5 @@ cron.schedule('*/30 * * * * *', async () => {
 
 // 启动服务
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}, auth=${REQUIRE_AUTH}`);
 });

@@ -10,7 +10,7 @@ export interface LLMTestResult {
   wordCount?: number;        // 输出字数（吞吐量参考）
 }
 
-function scoreFactMatch(actual: string, expected?: string): boolean {
+export function scoreFactMatch(actual: string, expected?: string): boolean {
   if (!expected) return true;
   const normalizedActual = actual.toLowerCase().trim();
   const normalizedExpected = expected.toLowerCase().trim();
@@ -22,7 +22,7 @@ function scoreFactMatch(actual: string, expected?: string): boolean {
   return strippedActual.includes(strippedExpected) || strippedExpected.includes(strippedActual);
 }
 
-function countWords(text: string): number {
+export function countWords(text: string): number {
   if (!text) return 0;
   // 中英文混合计数：英文按空格分割，中文按字符
   const enWords = text.split(/\s+/).filter(w => /[a-zA-Z]/.test(w)).length;
@@ -144,7 +144,7 @@ const DEFAULT_TEST_CASES: TestCase[] = [
   },
 ];
 
-function getAuthHeaders(provider: string, apiKey: string): Record<string, string> {
+export function getAuthHeaders(provider: string, apiKey: string): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -164,7 +164,7 @@ function getAuthHeaders(provider: string, apiKey: string): Record<string, string
   return headers;
 }
 
-function extractJuiceValue(text: string): number | undefined {
+export function extractJuiceValue(text: string): number | undefined {
   const patterns = [
     /juice\D*(\d+)/i,
     /tokens?\D*(\d+)/i,

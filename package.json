@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npx tsc -b && npx vite build",
+    "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "start": "cd backend && npm start",
@@ -15,7 +15,7 @@
     "backend:start": "cd backend && npm start",
     "backend:db-push": "cd backend && npx prisma db push",
     "frontend:install": "npm install",
-    "frontend:build": "npx tsc -b && npx vite build"
+    "frontend:build": "tsc -b && vite build"
   },
   "dependencies": {
     "lucide-react": "^0.441.0",
@@ -37,7 +37,7 @@
     "postcss": "^8.4.45",
     "tailwindcss": "^3.4.10",
     "typescript": "^5.5.3",
-    "vite": "^5.4.2"
+    "vite": "^7.1.11"
   },
   "engines": {
     "node": ">=18"

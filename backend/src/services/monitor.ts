@@ -21,7 +21,7 @@ async function cleanupOldMetrics(modelId: string): Promise<void> {
 }
 
 /** 计算 Juice 趋势 */
-function calcJuiceTrend(
+export function calcJuiceTrend(
   currentValue: number | undefined,
   baseline: number
 ): string | null {
@@ -34,7 +34,7 @@ function calcJuiceTrend(
 }
 
 /** 计算一致性分数（基于响应时间变异系数） */
-function calcConsistencyScore(responseTimes: number[]): number {
+export function calcConsistencyScore(responseTimes: number[]): number {
   if (responseTimes.length === 0) return 100;
   const filtered = responseTimes.filter(t => t > 0);
   if (filtered.length === 0) return 100;
@@ -52,7 +52,7 @@ function calcConsistencyScore(responseTimes: number[]): number {
 }
 
 /** 计算质量分 */
-function calcQualityScore(
+export function calcQualityScore(
   results: Record<string, LLMTestResult>,
   consistencyScore: number,
   juiceTrend: string | null

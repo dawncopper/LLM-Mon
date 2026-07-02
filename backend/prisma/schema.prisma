@@ -7,12 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  apiKeys      ApiKey[]
+  models       Model[]
+
+  @@map("users")
+}
+
 model ApiKey {
   id        String   @id @default(cuid())
   provider  String   // openai, anthropic, azure, custom
   key       String   // AES 加密存储
   label     String
   createdAt DateTime @default(now())
+  userId    String?  // 关联到用户（可选，保持向后兼容）
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   models    Model[]
 
   @@map("api_keys")
@@ -26,10 +39,13 @@ model Model {
   createdAt    DateTime  @default(now())
   apiKeyId     String
   apiKey       ApiKey    @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  userId       String?  // 关联到用户
+  user          User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   metrics      Metric[]
   testCases    TestCase[]
 
   @@index([apiKeyId])
+  @@index([userId])
   @@map("models")
 }
 

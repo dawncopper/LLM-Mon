@@ -7,30 +7,31 @@ const router = Router();
 
 router.get('/', async (_, res) => {
   const models = await prisma.model.findMany({
+    where: { userId: (_.userId as any) },
     include: { apiKey: { select: { label: true, provider: true, id: true } } },
     orderBy: { createdAt: 'desc' },
   });
   res.json(models);
 });
 
-router.post('/', async (req, res) => {
+router.post('/', async (req: any, res) => {
   const { name, apiDocUrl, apiEndpoint, apiKeyId } = req.body;
   if (!name || !apiEndpoint || !apiKeyId) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   const model = await prisma.model.create({
-    data: { name, apiDocUrl, apiEndpoint, apiKeyId },
+    data: { name, apiDocUrl, apiEndpoint, apiKeyId, userId: req.userId },
   });
   res.json(model);
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req: any, res) => {
   const { id } = req.params;
-  await prisma.model.delete({ where: { id } });
+  await prisma.model.delete({ where: { id, userId: req.userId } });
   res.json({ success: true });
 });
 
-router.get('/:id/metrics', async (req, res) => {
+router.get('/:id/metrics', async (req: any, res) => {
   const { id } = req.params;
   const hours = req.query.hours ? Number(req.query.hours) : 24;
 
@@ -75,21 +76,19 @@ router.get('/:id/metrics', async (req, res) => {
 
   const successRate = 100 - errorRate;
 
-  // 使用与 monitor 一致的质量分算法（优先取数据库已算好的值）
   const latestMetric = metrics[0];
   const juiceValue = latestMetric.juiceValue;
-  const juiceTrend = (latestMetric as any).juiceTrend as string | null | undefined;
-  const juiceBaseline = (latestMetric as any).juiceBaseline as number | null | undefined;
-  const throughputTPS = (latestMetric as any).throughputTPS as number | null | undefined;
-  const dbQualityScore = (latestMetric as any).qualityScore as number | null | undefined;
-  const dbConsistencyScore = (latestMetric as any).consistencyScore as number | null | undefined;
+  const juiceTrend = (latestMetric as any).juiceTrend;
+  const juiceBaseline = (latestMetric as any).juiceBaseline;
+  const throughputTPS = (latestMetric as any).throughputTPS;
+  const dbQualityScore = (latestMetric as any).qualityScore;
+  const dbConsistencyScore = (latestMetric as any).consistencyScore;
 
   let speedScore = 25;
   if (avgResponseTime < 1000) speedScore = 100;
   else if (avgResponseTime < 3000) speedScore = 75;
   else if (avgResponseTime < 5000) speedScore = 50;
 
-  // 如果数据库有预计算值则直接使用，否则 fallback 到旧公式
   const fallbackQuality = Math.round(successRate * 0.4 + Math.max(0, Math.min(100, Math.round((1 - cv) * 100))) * 0.3 + speedScore * 0.3);
   const qualityScore = dbQualityScore ?? fallbackQuality;
   const consistencyScore = dbConsistencyScore ?? Math.max(0, Math.min(100, Math.round((1 - cv) * 100)));
@@ -115,13 +114,13 @@ router.get('/:id/metrics', async (req, res) => {
   });
 });
 
-router.post('/:id/test', async (req, res) => {
+router.post('/:id/test', async (req: any, res) => {
   const { id } = req.params;
   const testCases = req.body.testCases as TestCase[] | undefined;
 
   try {
     const model = await prisma.model.findUnique({
-      where: { id },
+      where: { id, userId: req.userId },
       include: { apiKey: true },
     });
 
@@ -167,27 +166,6 @@ router.post('/:id/test', async (req, res) => {
     const avgResponseTime = totalTests > 0 ? Math.round(totalResponseTime / totalTests) : 0;
     const successRate = totalTests > 0 ? Math.round((successCount / totalTests) * 100) : 0;
 
-    // 获取 Juice 基准线和趋势
-    if (juiceValue !== null) {
-      const recentMetrics = await prisma.metric.findMany({
-        where: { modelId: id, juiceValue: { not: null } },
-        orderBy: { timestamp: 'desc' },
-        select: { juiceValue: true },
-        take: 5,
-      });
-
-      if (recentMetrics.length > 0) {
-        const juiceValues = recentMetrics.map(m => m.juiceValue).filter(v => v !== null) as number[];
-        juiceBaseline = Math.round(juiceValues.reduce((a, b) => a + b, 0) / juiceValues.length);
-
-        const diff = ((juiceValue - juiceBaseline!) / juiceBaseline!) * 100;
-        juiceTrend = diff > 5 ? 'improving' : diff < -5 ? 'degrading' : 'stable';
-      } else {
-        juiceBaseline = juiceValue;
-        juiceTrend = 'stable';
-      }
-    }
-
     const metricData: any = {
       modelId: model.id,
       responseTime: avgResponseTime,
@@ -218,9 +196,9 @@ router.post('/:id/test', async (req, res) => {
   }
 });
 
-router.get('/:id/test-cases', async (req, res) => {
-  const { id } = req.params;
+router.get('/:id/test-cases', async (req: any, res) => {
   try {
+    const { id } = req.params;
     const testCases = await prisma.testCase.findMany({
       where: { modelId: id },
       orderBy: { createdAt: 'asc' },
@@ -231,7 +209,7 @@ router.get('/:id/test-cases', async (req, res) => {
   }
 });
 
-router.post('/:id/test-cases', async (req, res) => {
+router.post('/:id/test-cases', async (req: any, res) => {
   const { id } = req.params;
   const { name, prompt, category } = req.body;
   if (!name || !prompt) {
@@ -247,7 +225,7 @@ router.post('/:id/test-cases', async (req, res) => {
   }
 });
 
-router.delete('/:id/test-cases/:testCaseId', async (req, res) => {
+router.delete('/:id/test-cases/:testCaseId', async (req: any, res) => {
   const { testCaseId } = req.params;
   try {
     await prisma.testCase.delete({ where: { id: testCaseId } });

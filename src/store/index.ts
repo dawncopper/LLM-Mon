@@ -24,8 +24,15 @@ interface AppStore {
   backendUrl: string;
   isBackendConnected: boolean;
 
+  // Auth
+  token: string | null;
+  user: { id: string; email: string } | null;
+
   setBackendUrl: (url: string) => void;
   checkBackend: () => Promise<boolean>;
+
+  setToken: (token: string, user: { id: string; email: string }) => void;
+  clearToken: () => void;
 
   fetchApiKeys: () => Promise<void>;
   addApiKey: (apiKey: Omit<ApiKeyConfig, 'id'>) => Promise<void>;
@@ -58,8 +65,20 @@ export const useStore = create<AppStore>()(
       backendUrl: '',
       isBackendConnected: false,
 
+      // Auth init
+      token: null,
+      user: null,
+
       setBackendUrl: (url) => {
         set({ backendUrl: url });
+      },
+
+      setToken: (token, user) => {
+        set({ token, user });
+      },
+
+      clearToken: () => {
+        set({ token: null, user: null });
       },
 
       checkBackend: async () => {
@@ -315,6 +334,8 @@ export const useStore = create<AppStore>()(
         samplingInterval: state.samplingInterval,
         isMonitoring: state.isMonitoring,
         backendUrl: state.backendUrl,
+        token: state.token,
+        user: state.user,
       }),
     }
   )
